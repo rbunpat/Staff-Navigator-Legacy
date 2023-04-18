@@ -10,4 +10,4 @@ yes i know its a fkin mess
 - profit???
 
 
-made with node.js, express, svelte and jank™®©℗℠
+made with node.js, express, svelte and jank™℠®©℗

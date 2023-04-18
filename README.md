@@ -12,7 +12,6 @@ yes i know its a fkin mess
 - change auth to sqlite instead of a dumb constant
 - prevent sql injection
 - verify jwt token (check if expired)
-- validate lat and lon with regex
 - profit???
 
 

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+  <div class="max-w-md mx-auto my-8 bg-grey-700 p-6 rounded-md shadow-md">
+    <h1 class="text-2xl text-white font-bold mb-4">Login</h1>
+    <% if (locals.error) { %>
+      <p class="text-red-500 mb-4"><%= locals.error %></p>
+    <% } %>
+    <form method="POST" action="/login">
+      <div class="mb-4">
+        <label for="username" class="block text-white font-bold mb-2">Username:</label>
+        <input type="text" name="username" id="username" autocomplete="off" placeholder="Your Username" required class="w-full px-3 py-2 border bg-gray-800 border-gray-700 rounded-md text-white transition-all">
+      </div>
+      <div class="mb-4">
+        <label for="password" class="block text-white font-bold mb-2">Password:</label>
+        <input type="password" name="password" id="password" autocomplete="off" placeholder="••••••••" required class="w-full px-3 py-2 border bg-gray-800 border-gray-700 rounded-md text-white transition-all">
+      </div>
+      <div class="text-center">
+        <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition-all">Login</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

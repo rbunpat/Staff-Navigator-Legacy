@@ -8,3 +8,6 @@ yes i know its a fkin mess
 - uhhhhhhhhh
 - change auth to sqlite instead of a dumb constant
 - profit???
+
+
+made with node.js, express, svelte and jank™®©℗℠

@@ -13,6 +13,7 @@ yes i know its a fkin mess
 - prevent sql injection
 - verify jwt token (check if expired)
 - profit???
+- probably rewrite the whole thing with just sveltekit lmao
 
 
 made with node.js, express, svelte and jank™℠®©℗

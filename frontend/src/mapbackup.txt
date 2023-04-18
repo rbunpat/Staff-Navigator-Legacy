@@ -1,0 +1,254 @@
+<script>
+    import L from "leaflet";
+    import "leaflet/dist/leaflet.css";
+  
+    import { onMount } from "svelte";
+  
+    let coordinates = "";
+    let locations = [];
+  
+    onMount(() => {
+      const dataUrl = "https://st.rbunpat.tech/data/json?limit=4"; // Replace with your API endpoint URL
+      fetch(dataUrl)
+        .then((response) => response.json())
+        .then((data) => {
+          locations = data;
+          coordinates = `${data[0].latitude}, ${data[0].longitude}`;
+          const map = L.map("trackerMap").setView(
+            [data[0].latitude, data[0].longitude],
+            13
+          );
+          L.tileLayer(
+            "https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png?key=POAr2VLNGDJgkpERTyod",
+            {
+              attribution: "",
+            }
+          ).addTo(map);
+          locations.forEach((data) => {
+            L.marker([data.latitude, data.longitude])
+              .addTo(map)
+              .bindPopup(data.timestamp)
+              .openPopup();
+          });
+          // L.marker([data[0].latitude, data[0].longitude])
+          //   .addTo(map)
+          //   .bindPopup("Latest Tracker Location")
+          //   .openPopup();
+          map.attributionControl.setPrefix(
+            '<a href="https://www.maptiler.com" style="position:absolute;left:10px;bottom:10px;z-index:999;"> <img src="https://api.maptiler.com/resources/logo.svg" alt="MapTiler logo" </a>'
+          );
+          return data;
+        });
+    });
+  </script>
+  
+  <div class="relative w-full">
+    <div class="h-40 md:h-0 md:pb-[71%]">
+      <div id="trackerMap" class="relative inset-0" />
+    </div>
+  </div>
+  
+  <div
+    class="container mx-auto flex flex-col px-5 py-48 justify-center items-center"
+  >
+    <div class="w-full md:w-3/4 flex flex-col mb-16 items-center text-center">
+      <h1
+        class="title-font sm:text-4xl text-3xl mb-4 font-medium text-gray-100 p-4"
+      >
+        Staff-Navigator Tracking Map
+      </h1>
+      <div class="flex w-full justify-center items-end">
+        <div class="relative mr-4 lg:w-full xl:w-1/2 w-2/4 md:w-full text-center">
+          <h1
+            class="text-2xl font-bold text-slate-100"
+            style="text-align: center;"
+          >
+            Coordinates
+          </h1>
+          <h1
+            class="text-2xl font-bold text-green-400 py-5"
+            style="text-align: center;"
+          >
+            {coordinates}
+          </h1>
+        </div>
+      </div>
+      <div>
+        <table class="scale-125">
+          <thead>
+            <tr>
+              <th>Latitude</th>
+              <th>Longitude</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each locations as item}
+              <tr>
+                <td>{item.latitude}</td>
+                <td>{item.longitude}</td>
+                <td>{item.timestamp}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+  <style>
+    #trackerMap {
+      width: 100%;
+      height: 100%;
+      padding-bottom: 100%;
+      position: relative;
+    }
+  
+    /* .coordinate-label {
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    } */
+  
+    /* @media only screen and (min-width: 640px) {
+      .coordinate-label {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+      }
+    } */
+  </style>
+  
+
+
+  <script>
+    import L from "leaflet";
+    import "leaflet/dist/leaflet.css";
+  
+    import { onMount } from "svelte";
+  
+    let coordinates = "";
+    let locations = [];
+  
+    onMount(() => {
+      const dataUrl = "https://st.rbunpat.tech/data/json?limit=4"; // Replace with your API endpoint URL
+      fetch(dataUrl)
+        .then((response) => response.json())
+        .then((data) => {
+          locations = data;
+          coordinates = `${data[0].latitude}, ${data[0].longitude}`;
+          const map = L.map("trackerMap").setView(
+            [data[0].latitude, data[0].longitude],
+            13
+          );
+          L.tileLayer(
+            "https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png?key=POAr2VLNGDJgkpERTyod",
+            {
+              attribution: "",
+            }
+          ).addTo(map);
+          locations.forEach((data) => {
+            L.marker([data.latitude, data.longitude])
+              .addTo(map)
+              .bindPopup(data.timestamp)
+              .openPopup();
+          });
+          // L.marker([data[0].latitude, data[0].longitude])
+          //   .addTo(map)
+          //   .bindPopup("Latest Tracker Location")
+          //   .openPopup();
+          map.attributionControl.setPrefix(
+            '<a href="https://www.maptiler.com" style="position:absolute;left:10px;bottom:10px;z-index:999;"> <img src="https://api.maptiler.com/resources/logo.svg" alt="MapTiler logo" </a>'
+          );
+          return data;
+        });
+    });
+  </script>
+  
+  <!-- <div class="relative w-full">
+    <div class="h-40 md:h-0 md:pb-[71%]">
+      <div id="trackerMap" class="relative inset-0" />
+    </div>
+  </div> -->
+<div id="trackerMap"></div>
+
+  
+  <!-- <div
+    class="container mx-auto flex flex-col px-5 py-48 justify-center items-center"
+  >
+    <div class="w-full md:w-3/4 flex flex-col mb-16 items-center text-center">
+      <h1
+        class="title-font sm:text-4xl text-3xl mb-4 font-medium text-gray-100 p-4"
+      >
+        Staff-Navigator Tracking Map
+      </h1>
+      <div class="flex w-full justify-center items-end">
+        <div class="relative mr-4 lg:w-full xl:w-1/2 w-2/4 md:w-full text-center">
+          <h1
+            class="text-2xl font-bold text-slate-100"
+            style="text-align: center;"
+          >
+            Coordinates
+          </h1>
+          <h1
+            class="text-2xl font-bold text-green-400 py-5"
+            style="text-align: center;"
+          >
+            {coordinates}
+          </h1>
+        </div>
+      </div>
+      <div>
+        <table class="scale-125">
+          <thead>
+            <tr>
+              <th>Latitude</th>
+              <th>Longitude</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each locations as item}
+              <tr>
+                <td>{item.latitude}</td>
+                <td>{item.longitude}</td>
+                <td>{item.timestamp}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+   -->
+  <!-- <style>
+    /* #trackerMap {
+      width: 100%;
+      height: 100%;
+      padding-bottom: 100%;
+      position: relative;
+    } */
+  
+    /* .coordinate-label {
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    } */
+  
+    /* @media only screen and (min-width: 640px) {
+      .coordinate-label {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+      }
+    } */
+  </style> -->
+
+<style>
+  .leaflet-container {
+    height: 95%;
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
+  }
+</style>

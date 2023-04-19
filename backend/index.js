@@ -1,240 +1,295 @@
-const express = require("express");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const cookieParser = require("cookie-parser");
-const sqlite3 = require("sqlite3").verbose();
-const bodyParser = require("body-parser");
+const express = require('express');
+const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const sqlite3 = require('sqlite3').verbose();
+
+const userDb = new sqlite3.Database("user.db", (err) => {
+    if (err) {
+      console.error("User Database error: " + err.message);
+    }
+    console.log("User Database Connected");
+  });
+  
+userDb.on("error", (err) => {
+    console.error("User Database error: " + err.message);
+});
+userDb.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    password_hash REAL NOT NULL,
+    cane_id INTEGER NOT NULL
+)`);
+
+const coordinatesDb = new sqlite3.Database("coordinates.db", (err) => {
+    if (err) {
+      console.error("Coordinates Database error: " + err.message);
+    }
+    console.log("Coordinates Database Connected");
+  });
+  
+coordinatesDb.on("error", (err) => {
+    console.error("Coordinates Database error: " + err.message);
+});
+coordinatesDb.run(`CREATE TABLE IF NOT EXISTS positions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    latitude REAL NOT NULL,
+    longtitude REAL NOT NULL,
+    cane_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`);
+
+const jwtSecret = "INSERJWTSECRET";
 
 const app = express();
 const port = 8080;
-const secretKey = "mysecretkey";
-const db = new sqlite3.Database("coordinates.db", (err) => {
-  if (err) {
-    console.error(err.message);
-  }
-  console.log("Connected to the tracker database.");
-});
-
-db.on("error", (err) => {
-  console.error("Database error: " + err.message);
-});
-
-db.run(`CREATE TABLE IF NOT EXISTS positions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    latitude REAL NOT NULL,
-    longitude REAL NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )`);
 
 app.use(bodyParser.json());
-
-app.use(function (req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
-  next();
-});
-
-// const db = new sqlite3.Database("users.db", (err) => {
-//     if (err) {
-//       console.error(err.message);
-//     }
-//     console.log("Connected to the tracker database.");
-//   });
-
-//   db.on("error", (err) => {
-//     console.error("Database error: " + err.message);
-//   });
-
-//   db.run(`CREATE TABLE IF NOT EXISTS positions (
-//     id INTEGER PRIMARY KEY AUTOINCREMENT,
-//     username TEXT NOT NULL,
-//     passwordHash TEXT NOT NULL
-//   )`);
-
-const user = {
-  username: "username",
-  passwordHash: "$2a$10$J2CrI8pgUewapv.HfdLijehK4D2MkjsTex6ls.VOfYCGWbL4rowl6", // "password"
-};
-
-app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.set("view engine", "ejs");
+app.use(express.urlencoded({ extended: true }));
 app.use("/assets", express.static("./public/assets"));
+app.use(function (req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    next();
+});
+app.set("view engine", "ejs");
+
 
 app.get("/", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) {
-    return res.render("login");
-  }
-  try {
-    const decoded = jwt.verify(token, secretKey);
-    if (decoded.username !== user.username) {
-      throw new Error("Invalid username");
-    }
-    res.sendFile("index.html", { root: __dirname + "/public" });
-  } catch (err) {
-    res.render("login");
-  }
+    console.log('/ GET');
+    res.render("index");
 });
 
 app.get("/login", (req, res) => {
-  res.render("login");
+    console.log('/login GET');
+    res.render("login");
+});
+
+app.get("/register", (req, res) => {
+    console.log('/register GET');
+    res.render("register");
+});
+
+app.get("/dashboard", (req, res) => {
+    console.log('/dashboard GET');
+    
+    const token = req.cookies.token;
+    if (!token) {
+        res.redirect("/login");
+        return;
+    }
+    try {
+        const decoded = jwt.verify(token, jwtSecret);
+        if (decoded) {
+            res.render("dashboard");
+        }
+    } catch (err) {
+        console.log(err);
+        res.redirect("/login");
+    }
 });
 
 app.get("/logout", (req, res) => {
-  res.clearCookie("token");
-  res.redirect("/");
+    console.log('/logout GET');
+    res.clearCookie("token");
+    res.redirect("/");
 });
+
+app.get("/username", (req, res) => {
+    console.log('/username GET');
+    const token = req.cookies.token;
+    if (!token) {
+        res.status(401).send("Unauthorized");
+        return;
+    }
+    try {
+        const decoded = jwt.verify(token, jwtSecret);
+        if (decoded) {
+            res.send(decoded.email);
+        }
+    } catch (err) {
+        console.log(err);
+        res.status(401).send("Unauthorized");
+    }
+});
+
+app.get("/coordinates", (req, res) => {
+    console.log('/coordinates GET');
+    const token = req.cookies.token;
+    if (!token) {
+        res.status(401).send("Unauthorized");
+        return;
+    }
+    try {
+        const decoded = jwt.verify(token, jwtSecret);
+        if (decoded) {
+            const query = `SELECT cane_id FROM users WHERE email = ?`;
+            const params = [decoded.email];
+            userDb.get(query, params, (err, row) => {
+                if (err) {
+                    console.error(err.message);
+                    res.status(500).send("Internal Server error");
+                    return;
+                }
+                if (!row) {
+                    res.status(401).send("Unauthorized");
+                    return;
+                }
+                const query = `SELECT * FROM positions WHERE cane_id = ?`;
+                const params = [row.cane_id];
+                coordinatesDb.all(query, params, (err, rows) => {
+                    if (err) {
+                        console.error(err.message);
+                        res.status(500).send("Internal Server error");
+                        return;
+                    }
+                    res.send(rows);
+                });
+                // res.send(row.cane_id.toString());
+            });
+        }
+    } catch (err) {
+        console.log(err);
+        res.status(401).send("Unauthorized");
+    }
+});
+
+app.get("/caneid", (req, res) => {
+    console.log('/caneid GET');
+
+    const token = req.cookies.token;
+    if (!token) {
+        res.status(401).send("Unauthorized");
+        return;
+    }
+    try {
+        const decoded = jwt.verify(token, jwtSecret);
+        if (decoded) {
+            const query = `SELECT cane_id FROM users WHERE email = ?`;
+            const params = [decoded.email];
+            userDb.get(query, params, (err, row) => {
+                if (err) {
+                    console.error(err.message);
+                    res.status(500).send("Internal Server error");
+                    return;
+                }
+                if (!row) {
+                    res.status(401).send("Unauthorized");
+                    return;
+                }
+                res.send(row.cane_id.toString());
+            });
+        }
+    } catch (err) {
+        console.log(err);
+        res.status(401).send("Unauthorized");
+    }
+});
+
 
 app.post("/login", (req, res) => {
-  const { username, password } = req.body;
-  const sqlRegex = /([';]|--)/;
-  if (sqlRegex.test(username) || sqlRegex.test(password)) {
-    res.render("login", { error: "nice try lmao, but no sql injection here :)" });
-    return;
-  }
+    console.log('/login POST');
 
-  if (
-    username === user.username &&
-    bcrypt.compareSync(password, user.passwordHash)
-  ) {
-    const token = jwt.sign({ username }, secretKey, { expiresIn: "1h" });
-    res.cookie("token", token, { httpOnly: true, maxAge: 3600000 });
-    res.redirect("/");
-  } else {
-    res.render("login", { error: "Invalid username or password" });
-  }
+    const { email, password } = req.body;
+    const query = `SELECT * FROM users WHERE email = ?`;
+    const params = [email];
+
+    userDb.get(query, params, (err, row) => {
+        if (err) {
+            console.error(err.message);
+            res.status(500).send("Internal Server error");
+            return;
+        }
+        if (!row) {
+            res.render("login", { error: "Invalid email address or password" });
+            return;
+        }
+        const passwordHash = row.password_hash;
+        bcrypt.compare(password, passwordHash, (err, result) => {
+            if (err) {
+                console.error(err.message);
+                res.status(500).send("Internal Server error");
+                return;
+            }
+            if (!result) {
+                res.render("login", { error: "Invalid email address or password" });
+                return;
+            }
+            const token = jwt.sign({ email }, jwtSecret);
+            res.cookie("token", token);
+            res.redirect("/dashboard");
+        });
+    });
 });
 
+app.post("/register", async (req, res) => {
+    console.log('/register POST');
 
-// app.post("/login", (req, res) => {
-//   const { username, password } = req.body;
-//   if (
-//     username === user.username &&
-//     bcrypt.compareSync(password, user.passwordHash)
-//   ) {
-//     const token = jwt.sign({ username }, secretKey, { expiresIn: "1h" });
-//     res.cookie("token", token, { httpOnly: true, maxAge: 3600000 });
-//     res.redirect("/");
-//   } else {
-//     res.render("login", { error: "Invalid username or password" });
-//   }
-// });
+    const { email, password, caneserial} = req.body;
+    const turnstileResponse = req.body['cf-turnstile-response'];
+    const caneQuery = `SELECT * FROM users WHERE cane_id = ?`;
+    const emailQuery = `SELECT * FROM users WHERE email = ?`;
+    const caneParams = [caneserial];
+    const emailParams = [email];
+    const cfSecretKey = 'INSERTSECRETKEY';
+    const turnstileUrl = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
-app.get("/data", function (req, res) {
-  console.log(req.originalUrl);
-  res.send("404 Not Found");
+    let turnstileForm = new FormData();
+    turnstileForm.append('secret', cfSecretKey)
+    turnstileForm.append('response', turnstileResponse);
+
+    const result = await fetch(turnstileUrl, {
+        body: turnstileForm,
+        method: 'POST',
+    });
+
+    const outcome = await result.json();
+    if (outcome.success) {
+        userDb.get(caneQuery, caneParams, (err, row) => {
+            if (err) {
+                console.error(err.message);
+                res.status(500).send("Internal Server error");
+                return;
+            }
+            if (row) {
+                res.render("register", { error: "Cane serial already registered" });
+                return;
+            }
+            userDb.get(emailQuery, emailParams, (err, row) => {
+                if (err) {
+                    console.error(err.message);
+                    res.status(500).send("Internal Server error");
+                    return;
+                }
+                if (row) {
+                    res.render("register", { error: "Email already registered" });
+                    return;
+                }
+                const hash = bcrypt.hashSync(password, 10);
+                const insertQuery = `INSERT INTO users (email, password_hash, cane_id) VALUES (?, ?, ?)`;
+                const insertParams = [email, hash, caneserial];
+                userDb.run(insertQuery, insertParams, (err) => {
+                    if (err) {
+                        console.error(err.message);
+                        res.status(500).send("Internal Server error");
+                        return;
+                    }
+                    res.render("login", { message: "Registration successful, please login" });
+                }
+                );
+            });
+        });
+    }
+    else {
+        res.render("register", { error: "Invalid captcha" });
+        return;
+    }
 });
 
-app.post("/data/save", function (req, res) {
-  console.log(req.originalUrl);
-  const { latitude, longitude } = req.body;
-
-  if (!latitude || !longitude) {
-    return res.status(400).send("Latitude and longitude are required.");
-  }
-
-  const query = `INSERT INTO positions (latitude, longitude) VALUES (?, ?)`;
-  const params = [latitude, longitude];
-
-  db.run(query, function (err) {
-    if (err) {
-      return res.status(500).send(`{
-    "status": "400 Bad Request"
-}`);
-    }
-    res.send(`{
-"status": "200 OK"
-}`);
-  });
-});
-
-app.get("/data/json", function (req, res) {
-  console.log(req.originalUrl);
-  const limit = parseInt(req.query.limit) || 1;
-  const query = `SELECT latitude, longitude, created_at FROM positions ORDER BY created_at DESC LIMIT ${limit}`;
-
-  db.all(query, function (err, rows) {
-    if (err) {
-      return res.status(500).send(`{
-        "status": "400 Bad Request"
-    }`);
-    }
-    if (!rows.length) {
-      return res.status(404).send(`{
-        "status": "No Positions in Database"
-    }`);
-    }
-    const positions = rows.map((row) => ({
-      latitude: row.latitude,
-      longitude: row.longitude,
-      timestamp: row.created_at,
-    }));
-    res.send(JSON.stringify(positions));
-  });
-});
-
-app.get("/data/json/single", function (req, res) {
-  console.log(req.originalUrl);
-  const limit = parseInt(req.query.limit) || 1;
-  const query = `SELECT latitude, longitude FROM positions ORDER BY created_at DESC LIMIT 1`;
-
-  db.all(query, function (err, rows) {
-    if (err) {
-      return res.status(500).send(`{
-        "status": "400 Bad Request"
-    }`);
-    }
-    if (!rows.length) {
-      return res.status(404).send(`{
-        "status": "No Positions in Database"
-    }`);
-    }
-    const positions = rows.map((row) => ({
-      latitude: row.latitude,
-      longitude: row.longitude,
-    }));
-    res.send(JSON.stringify(positions));
-  });
-});
-
-app.get("/data/plain", function (req, res) {
-  console.log(req.originalUrl);
-  const limit = parseInt(req.query.limit) || 1;
-  const query = `SELECT latitude, longitude FROM positions ORDER BY created_at DESC LIMIT ${limit}`;
-
-  db.all(query, function (err, rows) {
-    if (err) {
-      return res.status(500).send("400 Bad Request, See " + githubLink);
-    }
-    if (!rows.length) {
-      return res.status(404).send("No positions found.");
-    }
-    const coordinates = rows
-      .map((row) => `${row.latitude}, ${row.longitude}`)
-      .join("\n");
-    res.send(coordinates);
-  });
-});
-
-app.get("/data/array", function (req, res) {
-  console.log(req.originalUrl);
-  const limit = parseInt(req.query.limit) || 1;
-  const query = `SELECT latitude, longitude FROM positions ORDER BY created_at DESC LIMIT ${limit}`;
-
-  db.all(query, function (err, rows) {
-    if (err) {
-      return res.status(500).send("400 Bad Request, See " + githubLink);
-    }
-    if (!rows.length) {
-      return res.status(404).send("No positions found.");
-    }
-    const positions = rows.map((row) => `${row.latitude}, ${row.longitude}`);
-    res.send(positions);
-  });
-});
 
 app.listen(port, () => {
-  console.log(`App listening at http://localhost:${port}`);
+    console.log(`App listening at http://localhost:${port}`);
 });

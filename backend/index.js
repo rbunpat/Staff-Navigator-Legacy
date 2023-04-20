@@ -3,7 +3,9 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const sqlite3 = require('sqlite3').verbose();
+const sendEmail = require('./utils/sendEmail');
 
 const userDb = new sqlite3.Database("user.db", (err) => {
     if (err) {
@@ -20,6 +22,22 @@ userDb.run(`CREATE TABLE IF NOT EXISTS users (
     email TEXT NOT NULL,
     password_hash REAL NOT NULL,
     cane_id INTEGER NOT NULL
+)`);
+
+const resetDb = new sqlite3.Database("passwordreset.db", (err) => {
+    if (err) {
+      console.error("Password Reset Database error: " + err.message);
+    }
+    console.log("Password Reset Database Connected");
+  });
+  
+resetDb.on("error", (err) => {
+    console.error("Password Reset Database error: " + err.message);
+});
+resetDb.run(`CREATE TABLE IF NOT EXISTS passreset (
+    reset_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    resettoken_hash REAL NOT NULL
 )`);
 
 const coordinatesDb = new sqlite3.Database("coordinates.db", (err) => {
@@ -40,7 +58,7 @@ coordinatesDb.run(`CREATE TABLE IF NOT EXISTS positions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`);
 
-const jwtSecret = "INSERJWTSECRET";
+const jwtSecret = "SLq1ayCHHKj1GZB";
 
 const app = express();
 const port = 8080;
@@ -72,6 +90,12 @@ app.get("/register", (req, res) => {
     console.log('/register GET');
     res.render("register");
 });
+
+app.get("/forgotpassword", (req, res) => {
+    console.log('/forgotpassword GET');
+    res.render("forgotpassword");
+});
+
 
 app.get("/dashboard", (req, res) => {
     console.log('/dashboard GET');
@@ -148,7 +172,6 @@ app.get("/coordinates", (req, res) => {
                     }
                     res.send(rows);
                 });
-                // res.send(row.cane_id.toString());
             });
         }
     } catch (err) {
@@ -187,6 +210,12 @@ app.get("/caneid", (req, res) => {
         console.log(err);
         res.status(401).send("Unauthorized");
     }
+});
+
+app.get("/resetpassword/:id/:token", (req, res) => {
+    console.log('/resetpassword GET');
+    const { id, token } = req.params;
+    res.render("resetpassword", { id: id, token: token });
 });
 
 
@@ -234,7 +263,7 @@ app.post("/register", async (req, res) => {
     const emailQuery = `SELECT * FROM users WHERE email = ?`;
     const caneParams = [caneserial];
     const emailParams = [email];
-    const cfSecretKey = 'INSERTSECRETKEY';
+    const cfSecretKey = 'turnstilekey';
     const turnstileUrl = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
     let turnstileForm = new FormData();
@@ -287,6 +316,113 @@ app.post("/register", async (req, res) => {
         res.render("register", { error: "Invalid captcha" });
         return;
     }
+});
+
+app.post("/resetpassword", async (req, res) => {
+    console.log('/resetpassword POST');
+
+    const email = req.body.email;
+    
+    const mailCheckQuery = `SELECT * FROM users WHERE email = ?`;
+    const mailCheckParams = [email];
+    userDb.get(mailCheckQuery, mailCheckParams, (err, row) => {
+        if (err) {
+            console.error(err.message);
+            res.status(500).send("Internal Server error");
+            return;
+        }
+        if (!row) {
+            res.render("forgotpassword", { error: "Email not registered" });
+            return;
+        }
+        
+        const findTokenQuery = `SELECT * FROM passreset WHERE user_id = ?`;
+        const findTokenParams = [row.id];
+        console.log(findTokenParams);
+        resetDb.get(findTokenQuery, findTokenParams, async (err, row) => {
+            if (err) {
+                console.error(err.message);
+                res.status(500).send("Internal Server error");
+                return;
+            }
+            else {
+                console.log('generate new token and send mail, then hash it and store it into db');
+                const token = crypto.randomBytes(32).toString('hex');
+                console.log(findTokenParams);
+                const link = `putyourhostnamehere/resetpassword/${findTokenParams[0]}/${token}`;
+                await sendEmail(email, "Password Reset - Staff Navigator", link);
+                const resetTokenHash = bcrypt.hashSync(token, 10);
+                const userIdForInsert = findTokenParams[0];
+                const newResetQuery = `INSERT OR REPLACE INTO passreset (user_id, resettoken_hash) VALUES (?, ?)`;
+                const newResetParams = [userIdForInsert, resetTokenHash];
+                resetDb.run(newResetQuery, newResetParams, (err) => {
+                    if (err) {
+                        console.error(err.message);
+                        res.status(500).send("Internal Server error");
+                        return;
+                    }
+                });
+                res.render("forgotpassword", { message: "Password reset link sent to email" });
+
+            }
+        });
+    });
+});
+
+app.post("/resetpassword/:id/:token", async (req, res) => {
+    console.log('/resetpassword/:id/:token POST');
+    const userId = req.params.id;
+    const token = req.params.token;
+    const { password } = req.body;
+    console.log(userId, token, password)
+    const findTokenQuery = `SELECT * FROM passreset WHERE user_id = ? ORDER BY reset_id DESC LIMIT 1`;
+    const findTokenParams = [userId];
+    resetDb.get(findTokenQuery, findTokenParams, (err, row) => {
+        if (err) {
+            console.error(err.message);
+            res.status(500).send("Internal Server error");
+            return;
+        }
+        if (!row) {
+            res.render("forgotpassword", { error: "Invalid token1" });
+            return;
+        }
+        const resetTokenHash = row.resettoken_hash;
+        console.log(resetTokenHash);
+        bcrypt.compare(token, resetTokenHash, (err, result) => {
+            if (err) {
+                console.error(err.message);
+                res.status(500).send("Internal Server error");
+                return;
+            }
+            if (!result) {
+                res.render("forgotpassword", { error: "Invalid token2" });
+                return;
+            }
+            const hash = bcrypt.hashSync(password, 10);
+            const updateQuery = `UPDATE users SET password_hash = ? WHERE id = ?`;
+            const updateParams = [hash, userId];
+            userDb.run(updateQuery, updateParams, (err) => {
+                if (err) {
+                    console.error(err.message);
+                    res.status(500).send("Internal Server error");
+                    return;
+                }
+                const deleteQuery = `DELETE FROM passreset WHERE user_id = ?`;
+                const deleteParams = [userId];
+                resetDb.run(deleteQuery, deleteParams, (err) => {
+                    if (err) {
+                        console.error(err.message);
+                        res.status(500).send("Internal Server error");
+                        return;
+                    }
+                    res.render("login", { message: "Password reset successful, please login" });
+                });
+                
+            });
+        });
+    });
+
 });
 
 

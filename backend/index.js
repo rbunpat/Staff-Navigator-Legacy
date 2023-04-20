@@ -58,7 +58,7 @@ coordinatesDb.run(`CREATE TABLE IF NOT EXISTS positions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`);
 
-const jwtSecret = "SLq1ayCHHKj1GZB";
+const jwtSecret = "";
 
 const app = express();
 const port = 8080;
